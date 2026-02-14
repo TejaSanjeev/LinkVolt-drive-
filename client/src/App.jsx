@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 
 // Components
 import Upload from './components/Upload';
@@ -9,33 +10,42 @@ import Register from './components/Register';
 import Dashboard from './components/Dashboard';
 
 function App() {
-  // 1. Initialize state from LocalStorage (Cache)
-  // This ensures the user stays logged in even if they refresh the page.
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [username, setUsername] = useState(localStorage.getItem('username'));
 
-  // 2. Sync state if localStorage changes (Optional safety check)
+  // Define Logout function first so we can use it inside useEffect
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    setToken(null);
+    setUsername(null);
+  };
+
+  // Verify Token on App Load
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('username');
+
     if (storedToken) {
-        setToken(storedToken);
-        setUsername(storedUser);
+      // Set initial state from cache
+      setToken(storedToken);
+      setUsername(storedUser);
+
+      // Verify with Backend if this token is actually still valid
+      axios.get('http://localhost:5000/api/auth/verify', {
+        headers: { Authorization: `Bearer ${storedToken}` }
+      })
+      .then(res => {
+        // Token is valid!
+        console.log("Session verified for:", res.data.user.username);
+      })
+      .catch((err) => {
+        // Token is invalid or expired
+        console.warn("Session expired or invalid. Logging out...");
+        handleLogout();
+      });
     }
   }, []);
-
-  // 3. Logout Function
-  const handleLogout = () => {
-    // Clear the cache
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    
-    // Clear State
-    setToken(null);
-    setUsername(null);
-    
-    // Redirect happens automatically because of the Route logic below
-  };
 
   return (
     <Router>
@@ -51,7 +61,6 @@ function App() {
             <div className="flex items-center space-x-6">
               {token ? (
                 <>
-                  {/* User is Logged In */}
                   <span className="text-gray-500 text-sm hidden sm:inline">
                     Hello, <b>{username}</b>
                   </span>
@@ -70,7 +79,6 @@ function App() {
                 </>
               ) : (
                 <>
-                  {/* User is Guest */}
                   <Link to="/login" className="text-gray-600 hover:text-blue-600 font-medium">
                     Login
                   </Link>
@@ -87,34 +95,31 @@ function App() {
         <div className="flex justify-center p-4">
           <div className="w-full max-w-md">
             <Routes>
-              {/* Strict Protection:
-                 If 'token' exists -> Show Upload Page
-                 If NO 'token' -> Redirect to Login 
-              */}
+              {/* Protected Route: Home/Upload */}
               <Route 
                 path="/" 
                 element={token ? <Upload token={token} /> : <Navigate to="/login" />} 
               />
               
-              {/* Login Page: If already logged in, go to Home */}
+              {/* Login Page */}
               <Route 
                 path="/login" 
                 element={!token ? <Login setToken={setToken} setUsername={setUsername} /> : <Navigate to="/" />} 
               />
               
-              {/* Register Page: If already logged in, go to Home */}
+              {/* Register Page */}
               <Route 
                 path="/register" 
                 element={!token ? <Register /> : <Navigate to="/" />} 
               />
               
-              {/* Dashboard: Protected */}
+              {/* Protected Route: Dashboard */}
               <Route 
                 path="/dashboard" 
                 element={token ? <Dashboard /> : <Navigate to="/login" />} 
               />
-
-              {/* View Page: PUBLIC (Must remain accessible to everyone) */}
+              
+              {/* Public Route: View Shared Link */}
               <Route path="/:id" element={<View />} />
             </Routes>
           </div>

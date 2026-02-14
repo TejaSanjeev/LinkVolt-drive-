@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import axios from 'axios';
 
-// CHANGE 1: Accept 'token' as a prop
+// Change: Accept 'token' prop
 const Upload = ({ token }) => {
   const [activeTab, setActiveTab] = useState('text'); // 'text' or 'file'
   const [text, setText] = useState('');
   const [file, setFile] = useState(null);
   
   // Settings
-  const [expiry, setExpiry] = useState(10); // Default 10 mins
+  const [expiry, setExpiry] = useState(''); // Empty = Default (24h)
   const [maxViews, setMaxViews] = useState(''); // Empty string = unlimited
   const [isOneTime, setIsOneTime] = useState(false); // Toggle state
   const [password, setPassword] = useState(''); // Password state
@@ -20,6 +20,13 @@ const Upload = ({ token }) => {
 
   // Constants
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+  // Helper: Get current date-time string for "min" attribute (prevent past dates)
+  const getMinDateTime = () => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+  };
 
   // Handle File Selection with Validation
   const handleFileChange = (e) => {
@@ -69,7 +76,11 @@ const Upload = ({ token }) => {
     setGeneratedLink('');
 
     const formData = new FormData();
-    formData.append('expiry', expiry);
+    
+    // Append Expiry if selected (otherwise backend defaults to 24h)
+    if (expiry) {
+        formData.append('expiry', expiry);
+    }
     
     if (maxViews) formData.append('maxViews', maxViews);
     if (password) formData.append('password', password);
@@ -91,7 +102,7 @@ const Upload = ({ token }) => {
     }
 
     try {
-      // CHANGE 2: Configure Headers with Token
+      // Configure Headers with Token
       const config = {
         headers: { 
           'Content-Type': 'multipart/form-data',
@@ -100,7 +111,6 @@ const Upload = ({ token }) => {
         },
       };
 
-      // Pass 'config' as the third argument
       const res = await axios.post('http://localhost:5000/api/upload', formData, config);
 
       if (res.data.success) {
@@ -152,19 +162,18 @@ const Upload = ({ token }) => {
           )}
         </div>
 
+        {/* Updated Settings Grid with DateTime Picker */}
         <div className="grid grid-cols-2 gap-4 mb-2">
             <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Expires in:</label>
-            <select
+            <label className="block text-sm font-medium text-gray-700 mb-1">Expires At:</label>
+            <input
+                type="datetime-local"
+                min={getMinDateTime()} // Block past dates
                 value={expiry}
                 onChange={(e) => setExpiry(e.target.value)}
-                className="w-full p-2 border rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-                <option value="1">1 Minute</option>
-                <option value="10">10 Minutes</option>
-                <option value="60">1 Hour</option>
-                <option value="1440">1 Day</option>
-            </select>
+                className="w-full p-2 border rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+            <p className="text-xs text-gray-400 mt-1">Leave empty for 10 minutes</p>
             </div>
 
             <div>

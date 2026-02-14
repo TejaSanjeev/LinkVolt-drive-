@@ -11,11 +11,11 @@ const __dirname = dirname(__filename);
 
 export const uploadContent = async (req, res) => {
   // 1. Extract Data
+  // 'expiry' is now expected to be a Date String (or undefined)
   const { text, expiry, maxViews, password } = req.body;
   const file = req.file;
   
   // 2. Capture User ID (from Auth Middleware)
-  // If req.user exists, use the ID. If not, store NULL (Guest upload).
   const userId = req.user ? req.user.id : null;
 
   // 3. Basic Validation
@@ -27,17 +27,30 @@ export const uploadContent = async (req, res) => {
   const type = file ? 'file' : 'text';
   const content = file ? file.filename : text;
   const originalName = file ? file.originalname : null;
-  const expiryMinutes = expiry ? parseInt(expiry) : 10;
-  const expiresAt = new Date(Date.now() + expiryMinutes * 60000).toISOString();
+
+  // 4. Expiry Logic (CHANGED)
+  // If user provided a date, use it. Otherwise, default to 24 hours from now.
+  let expiresAt;
+  if (expiry) {
+      expiresAt = new Date(expiry).toISOString();
+      
+      // Safety check: Ensure date is in the future
+      if (new Date(expiresAt) <= new Date()) {
+          return res.status(400).json({ error: 'Expiry time must be in the future.' });
+      }
+  } else {
+      expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // Default 24h
+  }
+
   const limitViews = maxViews ? parseInt(maxViews) : null;
   
-  // 4. Password Hashing
+  // 5. Password Hashing
   let hashedPassword = null;
   if (password) {
     hashedPassword = await bcrypt.hash(password, 10);
   }
 
-  // 5. Insert into Database (Includes userId)
+  // 6. Insert into Database
   const query = `INSERT INTO uploads (id, type, content, originalName, expiresAt, maxViews, password, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
 
   db.run(query, [id, type, content, originalName, expiresAt, limitViews, hashedPassword, userId], function(err) {
@@ -48,8 +61,6 @@ export const uploadContent = async (req, res) => {
 
 export const getContent = (req, res) => {
   const { id } = req.params;
-  
-  // Handle case where body is undefined (GET requests)
   const { password } = req.body || {}; 
 
   db.get(`SELECT * FROM uploads WHERE id = ?`, [id], async (err, row) => {

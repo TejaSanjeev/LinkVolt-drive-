@@ -2,7 +2,6 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import { uploadContent, getContent, downloadFile } from '../controllers/uploadController.js';
-// ⬇️ THIS IMPORT WAS MISSING OR INCOMPLETE ⬇️
 import { register, login, getMyUploads, deleteMyUpload } from '../controllers/authController.js';
 import authenticateToken from '../middleware/auth.js';
 
@@ -59,6 +58,17 @@ const uploadMiddleware = (req, res, next) => {
 // ==========================
 router.post('/auth/register', register);
 router.post('/auth/login', login);
+
+// 🆕 NEW: Verify Token Route
+router.get('/auth/verify', authenticateToken, (req, res) => {
+  // If we reach here, the middleware has already verified the token
+  if (req.user) {
+    res.json({ success: true, user: req.user });
+  } else {
+    res.status(401).json({ success: false, error: 'Invalid token' });
+  }
+});
+
 router.get('/user/uploads', authenticateToken, getMyUploads);
 router.delete('/user/files/:id', authenticateToken, deleteMyUpload);
 
