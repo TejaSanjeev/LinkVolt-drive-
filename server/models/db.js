@@ -1,4 +1,3 @@
-// ... imports remain the same
 import sqlite3 from 'sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -16,6 +15,14 @@ const db = new sqlite.Database(dbPath, (err) => {
 });
 
 db.serialize(() => {
+  // 1. Create Users Table
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT
+  )`);
+
+  // 2. Create Uploads Table
   db.run(`CREATE TABLE IF NOT EXISTS uploads (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,
@@ -25,7 +32,8 @@ db.serialize(() => {
     expiresAt DATETIME,
     views INTEGER DEFAULT 0,
     maxViews INTEGER,
-    password TEXT  -- New Column
+    password TEXT,
+    userId INTEGER
   )`);
 });
 

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import axios from 'axios';
 
-const Upload = () => {
+// CHANGE 1: Accept 'token' as a prop
+const Upload = ({ token }) => {
   const [activeTab, setActiveTab] = useState('text'); // 'text' or 'file'
   const [text, setText] = useState('');
   const [file, setFile] = useState(null);
@@ -25,7 +26,7 @@ const Upload = () => {
     const selectedFile = e.target.files[0];
     setError('');
     
-    // Define allowed extensions strictly
+    // Strict Allowlist
     const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'txt', 'docx', 'zip'];
 
     if (selectedFile) {
@@ -37,9 +38,8 @@ const Upload = () => {
             return;
         }
         
-        // 2. Check Extension (Strict Allowlist)
+        // 2. Check Extension
         const ext = selectedFile.name.split('.').pop().toLowerCase();
-        
         if (!allowedExtensions.includes(ext)) {
             setError(`Invalid file type. Allowed: ${allowedExtensions.join(', ')}`);
             setFile(null);
@@ -52,14 +52,13 @@ const Upload = () => {
     }
   };
 
-  // Handle the One-Time Checkbox toggle
   const handleOneTimeChange = (e) => {
     const checked = e.target.checked;
     setIsOneTime(checked);
     if (checked) {
-      setMaxViews('1'); // Auto-set to 1
+      setMaxViews('1');
     } else {
-      setMaxViews(''); // Reset to unlimited
+      setMaxViews('');
     }
   };
 
@@ -72,17 +71,9 @@ const Upload = () => {
     const formData = new FormData();
     formData.append('expiry', expiry);
     
-    // Append Max Views if exists
-    if (maxViews) {
-        formData.append('maxViews', maxViews);
-    }
+    if (maxViews) formData.append('maxViews', maxViews);
+    if (password) formData.append('password', password);
 
-    // Append Password if exists
-    if (password) {
-        formData.append('password', password);
-    }
-
-    // Append Content based on active tab
     if (activeTab === 'text') {
       if (!text.trim()) {
         setError('Please enter some text.');
@@ -100,9 +91,17 @@ const Upload = () => {
     }
 
     try {
-      const res = await axios.post('http://localhost:5000/api/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // CHANGE 2: Configure Headers with Token
+      const config = {
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          // Only add the token if it exists (User is logged in)
+          ...(token && { Authorization: `Bearer ${token}` }) 
+        },
+      };
+
+      // Pass 'config' as the third argument
+      const res = await axios.post('http://localhost:5000/api/upload', formData, config);
 
       if (res.data.success) {
         const link = `${window.location.origin}/${res.data.linkId}`;
@@ -135,7 +134,6 @@ const Upload = () => {
       </div>
 
       <form onSubmit={handleUpload}>
-        {/* Input Area */}
         <div className="mb-4">
           {activeTab === 'text' ? (
             <textarea
@@ -154,9 +152,7 @@ const Upload = () => {
           )}
         </div>
 
-        {/* Settings Grid */}
         <div className="grid grid-cols-2 gap-4 mb-2">
-            {/* Expiry Selection */}
             <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Expires in:</label>
             <select
@@ -171,7 +167,6 @@ const Upload = () => {
             </select>
             </div>
 
-            {/* View Limit Input */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                     Max Views: {isOneTime && <span className="text-xs text-red-500 font-bold">(Locked)</span>}
@@ -188,7 +183,6 @@ const Upload = () => {
             </div>
         </div>
 
-        {/* One-Time Link Checkbox */}
         <div className="mb-4 flex items-center">
             <input
                 id="oneTime"
@@ -202,7 +196,6 @@ const Upload = () => {
             </label>
         </div>
 
-        {/* Password Protection */}
         <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-1">Password Protection (Optional):</label>
             <input
@@ -214,7 +207,6 @@ const Upload = () => {
             />
         </div>
 
-        {/* Submit Button */}
         <button
           disabled={loading}
           className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition disabled:bg-blue-300 font-semibold shadow-md"
@@ -223,10 +215,8 @@ const Upload = () => {
         </button>
       </form>
 
-      {/* Error Message */}
       {error && <div className="mt-4 p-3 bg-red-50 text-red-600 text-sm text-center rounded border border-red-200">{error}</div>}
 
-      {/* Success Output */}
       {generatedLink && (
         <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
           <p className="text-sm text-green-800 mb-2 font-semibold">Your Secure Link:</p>
@@ -246,7 +236,6 @@ const Upload = () => {
               Copy
             </button>
           </div>
-          {/* Helper Text */}
           <div className="text-xs text-green-600 mt-3 text-center space-y-1">
                {isOneTime 
                  ? <p>⚠️ This link will be deleted immediately after it is viewed once.</p>
