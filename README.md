@@ -27,7 +27,7 @@
 ## Installation & Setup
 
 ```bash
-git clone https://github.com/TejaSanjeev/LinkVolt-drive-.git
+git clone https://github.com/TejaSanjeev/LinkVolt-drive.git
 cd LinkVolt-drive-
 
 cd server
