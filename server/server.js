@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import apiRoutes from './routes/api.js';
 import db from './models/db.js';
 import { supabase } from './supabaseClient.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

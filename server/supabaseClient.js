@@ -1,6 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const supabaseUrl = 'https://lnhadqbxmhrzydvfsudh.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuaGFkcWJ4bWhyenlkdmZzdWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMjc2MTcsImV4cCI6MjA4NjcwMzYxN30.RBRdPucTHLBsXLyjlkQeXrWhxxL-wm57vL0t4tJ4xG4';
+// 1. Fix for ES Modules: Resolve the path to .env explicitly
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// 2. Load the .env file immediately
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+
+// 3. Get keys
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+
+// 4. Debugging (Optional: Remove later if you want)
+if (!supabaseUrl || !supabaseKey) {
+    console.error(" ERROR: Supabase keys are missing!");
+    console.error("   -> Check your .env file in the 'server' folder.");
+    console.error("   -> Ensure keys are named SUPABASE_URL and SUPABASE_ANON_KEY");
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey);

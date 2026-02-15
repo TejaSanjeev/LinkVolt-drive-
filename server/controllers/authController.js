@@ -4,7 +4,6 @@ import db from '../models/db.js';
 import generateUniqueId from '../utils/generateId.js';
 import { supabase } from '../supabaseClient.js';
 
-const SECRET_KEY = 'supersecretkey'; 
 
 export const register = async (req, res) => {
   const { username, password } = req.body;
@@ -17,13 +16,23 @@ export const register = async (req, res) => {
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
-  const id = generateUniqueId();
 
-  db.run(`INSERT INTO users (id, username, password) VALUES (?, ?, ?)`, 
-    [id, username, hashedPassword], 
+  // 🔴 REMOVED: const id = generateUniqueId(); 
+  // We do not generate an ID manually because your schema uses AUTOINCREMENT.
+
+  // 🟢 UPDATED SQL: Removed 'id' column and value.
+  db.run(`INSERT INTO users (username, password) VALUES (?, ?)`, 
+    [username, hashedPassword], 
     function(err) {
       if (err) {
-          return res.status(400).json({ error: 'Username already exists' });
+          // Check if the error is actually about the username
+          if (err.message.includes('UNIQUE constraint failed')) {
+              return res.status(400).json({ error: 'Username already exists' });
+          }
+          
+          // Log other errors (like database locks) so you can see them
+          console.error("Registration Error:", err.message);
+          return res.status(500).json({ error: 'Database error occurred' });
       }
       res.json({ success: true });
     }
@@ -46,7 +55,7 @@ export const login = (req, res) => {
     // Generate JWT Token
     const token = jwt.sign(
       { id: user.id, username: user.username }, 
-      SECRET_KEY, 
+      process.env.JWT_SECRET, 
       { expiresIn: '1h' }
     );
 
