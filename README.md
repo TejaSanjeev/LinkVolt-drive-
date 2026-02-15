@@ -28,7 +28,7 @@
 
 ```bash
 git clone https://github.com/TejaSanjeev/LinkVolt-drive.git
-cd LinkVolt-drive-
+cd LinkVolt-drive
 
 cd server
 npm install
