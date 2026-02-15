@@ -1,66 +1,74 @@
 import db from '../models/db.js';
 import generateUniqueId from '../utils/generateId.js';
-import path from 'path';
-import fs from 'fs';
 import bcrypt from 'bcryptjs';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { supabase } from '../supabaseClient.js'; 
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
+// 1. UPLOAD CONTROLLER
 export const uploadContent = async (req, res) => {
-  // 1. Extract Data
-  // 'expiry' is now expected to be a Date String (or undefined)
-  const { text, expiry, maxViews, password } = req.body;
-  const file = req.file;
+    const { text, expiry, maxViews, password } = req.body;
+    const file = req.file;
+    const userId = req.user ? req.user.id : null;
+
+    // Validation
+    if ((!text && !file) || (text && file)) {
+        return res.status(400).json({ error: 'Please upload either a file or text.' });
+    }
+
+    const id = generateUniqueId();
+    const type = file ? 'file' : 'text';
+    const originalName = file ? file.originalname : null;
+
+    // Handle File Upload to Supabase
+    let content = text; // Default for text
   
-  // 2. Capture User ID (from Auth Middleware)
-  const userId = req.user ? req.user.id : null;
+    if (file) {
+        const fileName = `${Date.now()}_${file.originalname}`;
+        
+        // Upload to Supabase Bucket named 'uploads'
+        const { error } = await supabase.storage.from('uploads').upload(fileName, file.buffer, {
+            contentType: file.mimetype
+        });
 
-  // 3. Basic Validation
-  if ((!text && !file) || (text && file)) {
-    return res.status(400).json({ error: 'Please upload either a file or text.' });
-  }
+        if (error) {
+            console.error("Supabase Upload Error:", error);
+            return res.status(500).json({ error: 'Failed to upload file to cloud storage.' });
+        }
 
-  const id = generateUniqueId();
-  const type = file ? 'file' : 'text';
-  const content = file ? file.filename : text;
-  const originalName = file ? file.originalname : null;
+        content = fileName;
+    }
 
-  // 4. Expiry Logic (CHANGED)
-  // If user provided a date, use it. Otherwise, default to 24 hours from now.
-  let expiresAt;
-  if (expiry) {
-      expiresAt = new Date(expiry).toISOString();
-      
-      // Safety check: Ensure date is in the future
-      if (new Date(expiresAt) <= new Date()) {
-          return res.status(400).json({ error: 'Expiry time must be in the future.' });
-      }
-  } else {
-      expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // Default 24h
-  }
+    // Expiry Logic
+    let expiresAt;
+    if (expiry) {
+        expiresAt = new Date(expiry).toISOString();
+        if (new Date(expiresAt) <= new Date()) {
+            return res.status(400).json({ error: 'Expiry time must be in the future.' });
+        }
+    } else {
+        expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // Default 10 mins
+    }
 
-  const limitViews = maxViews ? parseInt(maxViews) : null;
+    const limitViews = maxViews ? parseInt(maxViews) : null;
   
-  // 5. Password Hashing
-  let hashedPassword = null;
-  if (password) {
-    hashedPassword = await bcrypt.hash(password, 10);
-  }
+    // Password Hashing
+    let hashedPassword = null;
+    if (password) {
+        hashedPassword = await bcrypt.hash(password, 10);
+    }
 
-  // 6. Insert into Database
-  const query = `INSERT INTO uploads (id, type, content, originalName, expiresAt, maxViews, password, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+    // Save to Database
+    const query = `INSERT INTO uploads (id, type, content, originalName, expiresAt, maxViews, password, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
 
-  db.run(query, [id, type, content, originalName, expiresAt, limitViews, hashedPassword, userId], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ success: true, linkId: id });
-  });
+    db.run(query, [id, type, content, originalName, expiresAt, limitViews, hashedPassword, userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true, linkId: id });
+    });
 };
 
+// 2. GET CONTENT CONTROLLER (Fixed View Counting)
 export const getContent = (req, res) => {
   const { id } = req.params;
+  const isVerification = req.method === 'POST'; // Only count view if method is POST
   const { password } = req.body || {}; 
 
   db.get(`SELECT * FROM uploads WHERE id = ?`, [id], async (err, row) => {
@@ -77,10 +85,23 @@ export const getContent = (req, res) => {
         return res.status(410).json({ error: 'Max views reached.' });
     }
 
-    // Check Password Protection
+    // --- GET Request: Peek Mode (Safe) ---
+    // Does NOT increment view count. Just tells frontend if it exists/is protected.
+    if (!isVerification) {
+        return res.json({ 
+            found: true, 
+            type: row.type, 
+            originalName: row.originalName,
+            protected: !!row.password // Returns true if password exists
+        });
+    }
+
+    // --- POST Request: Reveal Mode (Consumes View) ---
+    
+    // Verify Password if needed
     if (row.password) {
         if (!password) {
-            return res.json({ protected: true, id: row.id });
+            return res.status(401).json({ error: 'Password required' });
         }
         const isMatch = await bcrypt.compare(password, row.password);
         if (!isMatch) {
@@ -88,7 +109,7 @@ export const getContent = (req, res) => {
         }
     }
 
-    // Increment View Count
+    // ✅ INCREMENT VIEW COUNT (Only happens here!)
     db.run(`UPDATE uploads SET views = views + 1 WHERE id = ?`, [id]);
 
     // Return Content
@@ -104,12 +125,15 @@ export const getContent = (req, res) => {
   });
 };
 
-export const downloadFile = (req, res) => {
+// 3. DOWNLOAD FILE CONTROLLER
+export const downloadFile = async (req, res) => {
     const filename = req.params.filename;
-    const filePath = path.join(__dirname, '../uploads', filename);
-    
-    if (fs.existsSync(filePath)) {
-        res.download(filePath);
+
+    // Get Public URL from Supabase
+    const { data } = supabase.storage.from('uploads').getPublicUrl(filename);
+
+    if (data && data.publicUrl) {
+        res.redirect(data.publicUrl);
     } else {
         res.status(404).json({ error: 'File not found' });
     }

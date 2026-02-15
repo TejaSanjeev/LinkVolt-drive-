@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-ro
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-// Components
 import Upload from './components/Upload';
 import View from './components/View';
 import Login from './components/Login';       
@@ -13,7 +12,6 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [username, setUsername] = useState(localStorage.getItem('username'));
 
-  // Define Logout function first so we can use it inside useEffect
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
@@ -21,69 +19,55 @@ function App() {
     setUsername(null);
   };
 
-  // Verify Token on App Load
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('username');
-
     if (storedToken) {
-      // Set initial state from cache
       setToken(storedToken);
       setUsername(storedUser);
-
-      // Verify with Backend if this token is actually still valid
       axios.get('http://localhost:5000/api/auth/verify', {
         headers: { Authorization: `Bearer ${storedToken}` }
-      })
-      .then(res => {
-        // Token is valid!
-        console.log("Session verified for:", res.data.user.username);
-      })
-      .catch((err) => {
-        // Token is invalid or expired
-        console.warn("Session expired or invalid. Logging out...");
-        handleLogout();
-      });
+      }).catch(() => handleLogout());
     }
   }, []);
 
   return (
     <Router>
-      <div className="min-h-screen bg-gray-100 font-sans">
+      <div className="min-h-screen text-gray-100 selection:bg-blue-500 selection:text-white pb-20">
         
-        {/* Navigation Bar */}
-        <nav className="bg-white shadow mb-8">
-          <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-            <Link to="/" className="text-2xl font-bold text-blue-600 hover:text-blue-700">
-              LinkVolt ⚡
+        {/* Glass Navbar - Full Width */}
+        <nav className="glass-panel sticky top-0 z-50 border-b border-gray-700 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <Link to="/" className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500 hover:opacity-80 transition">
+              LinkVolt<span className="text-white">⚡</span>
             </Link>
             
             <div className="flex items-center space-x-6">
               {token ? (
                 <>
-                  <span className="text-gray-500 text-sm hidden sm:inline">
-                    Hello, <b>{username}</b>
+                  <span className="text-gray-400 text-sm hidden sm:inline">
+                    Welcome, <span className="text-blue-400 font-semibold">{username}</span>
                   </span>
-                  <Link to="/dashboard" className="text-gray-600 hover:text-blue-600 font-medium">
-                    My Dashboard
+                  <Link to="/dashboard" className="text-gray-300 hover:text-white font-medium transition">
+                    Dashboard
                   </Link>
-                  <Link to="/" className="text-gray-600 hover:text-blue-600 font-medium">
-                    Upload
+                  <Link to="/" className="text-gray-300 hover:text-white font-medium transition">
+                    New Upload
                   </Link>
                   <button 
                     onClick={handleLogout} 
-                    className="text-red-500 hover:text-red-700 font-medium border border-red-100 px-3 py-1 rounded hover:bg-red-50"
+                    className="text-red-400 hover:text-red-300 font-medium border border-red-900/50 bg-red-900/10 px-4 py-1.5 rounded-full transition hover:bg-red-900/30"
                   >
                     Logout
                   </button>
                 </>
               ) : (
                 <>
-                  <Link to="/login" className="text-gray-600 hover:text-blue-600 font-medium">
+                  <Link to="/login" className="text-gray-300 hover:text-white font-medium transition">
                     Login
                   </Link>
-                  <Link to="/register" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-                    Register
+                  <Link to="/register" className="btn-volt px-5 py-2 rounded-full text-white font-bold text-sm shadow-lg">
+                    Get Started
                   </Link>
                 </>
               )}
@@ -91,38 +75,15 @@ function App() {
           </div>
         </nav>
 
-        {/* Main Content Area */}
-        <div className="flex justify-center p-4">
-          <div className="w-full max-w-md">
+        {/* Main Content Area - WIDE Container */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
             <Routes>
-              {/* Protected Route: Home/Upload */}
-              <Route 
-                path="/" 
-                element={token ? <Upload token={token} /> : <Navigate to="/login" />} 
-              />
-              
-              {/* Login Page */}
-              <Route 
-                path="/login" 
-                element={!token ? <Login setToken={setToken} setUsername={setUsername} /> : <Navigate to="/" />} 
-              />
-              
-              {/* Register Page */}
-              <Route 
-                path="/register" 
-                element={!token ? <Register /> : <Navigate to="/" />} 
-              />
-              
-              {/* Protected Route: Dashboard */}
-              <Route 
-                path="/dashboard" 
-                element={token ? <Dashboard /> : <Navigate to="/login" />} 
-              />
-              
-              {/* Public Route: View Shared Link */}
+              <Route path="/" element={token ? <Upload token={token} /> : <Navigate to="/login" />} />
+              <Route path="/login" element={!token ? <Login setToken={setToken} setUsername={setUsername} /> : <Navigate to="/" />} />
+              <Route path="/register" element={!token ? <Register /> : <Navigate to="/" />} />
+              <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/login" />} />
               <Route path="/:id" element={<View />} />
             </Routes>
-          </div>
         </div>
         
       </div>
